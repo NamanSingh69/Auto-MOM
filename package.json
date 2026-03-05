@@ -1,0 +1,7 @@
+{
+    "name": "auto-mom",
+    "private": true,
+    "scripts": {
+        "build": "cd frontend && npm install && npm run vercel-build"
+    }
+}
