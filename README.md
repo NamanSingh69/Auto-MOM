@@ -1,51 +1,73 @@
-# Auto MOM (Minutes of Meeting Bot) — Technical Report
+# React + TypeScript + Vite
 
-## Architecture Overview
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-| Component | Technology |
-|-----------|-----------|
-| Language | Python 3.x |
-| Browser Automation | Playwright |
-| Audio Capture | Soundcard, SoundFile |
-| Platform | Desktop only (requires audio hardware) |
+Currently, two official plugins are available:
 
-### Pipeline
-```
-[Meeting URL] → [Playwright Browser] → [Join Meeting Automatically]
-                                             ↓
-                              [Soundcard Audio Capture (Loopback)]
-                                             ↓
-                              [WAV Recording] → [Audio File Output]
-```
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-## Study Findings
+## React Compiler
 
-- **Purpose**: Automated meeting attendance and audio recording bot
-- **Browser Control**: Playwright launches Chromium, navigates to meeting URL, handles join flow
-- **Audio**: Captures system audio via Soundcard's loopback recording (records what speakers output)
-- **Requirements**: Physical/virtual audio device, desktop OS with audio loopback support
-- **Deployment Verdict**: ❌ **Not deployable on free tier** — Requires desktop environment with audio hardware, browser rendering, and GUI. Not suitable for headless server deployment.
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-## Local Setup Guide
+## Expanding the ESLint configuration
 
-```bash
-# 1. Navigate to project
-cd "Auto MOM"
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
 
-# 2. Setup Python environment
-python -m venv venv
-venv\Scripts\activate
+```js
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
 
-# 3. Install dependencies
-pip install playwright soundcard soundfile
+      // Remove tseslint.configs.recommended and replace with this
+      tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      tseslint.configs.stylisticTypeChecked,
 
-# 4. Install Playwright browsers
-playwright install chromium
-
-# 5. Run the bot
-python bot_engine.py
-# Note: Requires an active audio output device for loopback recording
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
 ```
 
-## 🔑 API Keys
-No API keys required — operates locally with browser automation.
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
