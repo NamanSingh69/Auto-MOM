@@ -1,0 +1,5 @@
+[
+  "test_gemini_resolver.py::test_generate_with_fallback_success_first_try",
+  "test_gemini_resolver.py::test_generate_with_fallback_triggers_fallback_on_429",
+  "test_gemini_resolver.py::test_score_model"
+]
