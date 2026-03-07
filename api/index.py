@@ -6,6 +6,7 @@ import google.generativeai as genai
 from pydantic import BaseModel
 from typing import List
 import requests
+from gemini_model_resolver import generate_with_fallback, get_dynamic_cascade
 
 app = Flask(__name__)
 # Enable CORS for local testing, assuming frontend is on port 5173
@@ -33,11 +34,11 @@ def get_models():
         return jsonify({"error": "Gemini API key missing"}), 401
 
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
-        response = requests.get(url)
-        if response.status_code != 200:
-            return jsonify(response.json()), response.status_code
-        return jsonify(response.json()), 200
+        cascade = get_dynamic_cascade(api_key)
+        # Emulate the Google API format so the frontend dropdown works out-of-the-box
+        return jsonify({
+            "models": [{"name": f"models/{m}"} for m in cascade]
+        }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -62,7 +63,7 @@ def synthesize_minutes():
         _, temp_path = tempfile.mkstemp(suffix=".webm")
         audio_file.save(temp_path)
 
-        requested_model = request.form.get("model", "gemini-1.5-flash")
+        requested_model = request.form.get("model", "gemini-3.1-pro")
         
         # Configure Gemini
         genai.configure(api_key=api_key)
@@ -71,19 +72,21 @@ def synthesize_minutes():
         print("Uploading to Gemini File API...")
         gemini_file = genai.upload_file(temp_path, mime_type="audio/webm")
 
-        # Define the model and instruction
-        model = genai.GenerativeModel(
-            model_name=requested_model, 
-            system_instruction="You are a professional Executive Assistant synthesizing meeting minutes from the provided audio. Identify action items and key decisions. Output strictly in the requested JSON format."
+        response, model_used = generate_with_fallback(
+            api_key=api_key,
+            initial_model=requested_model,
+            contents=[gemini_file, "Summarize this meeting audio into the required JSON schema."],
+            system_instruction="You are a professional Executive Assistant synthesizing meeting minutes from the provided audio. Identify action items and key decisions. Output strictly in the requested JSON format.",
+            response_schema=MeetingMinutes,
+            response_mime_type="application/json"
         )
 
-        response = model.generate_content(
-            [gemini_file, "Summarize this meeting audio into the required JSON schema."],
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json",
-                response_schema=MeetingMinutes
-            )
-        )
+        import json
+        try:
+            payload = json.loads(response.text)
+            payload["_model_used"] = model_used
+        except Exception:
+            payload = {"error": "Failed to parse API output"}
 
         # Cleanup the file from Gemini and Local
         try:
@@ -92,7 +95,7 @@ def synthesize_minutes():
         except:
             pass
 
-        return response.text, 200, {'Content-Type': 'application/json'}
+        return jsonify(payload), 200
 
     except Exception as e:
         print(f"Error synthesizing audio: {str(e)}")
