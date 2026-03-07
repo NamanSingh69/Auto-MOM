@@ -33,6 +33,13 @@ export default function App() {
   };
 
   const startRecording = async () => {
+    const apiKey = localStorage.getItem('gemini_api_key');
+    if (!apiKey) {
+      toast.error('Local microphone recording requires your own Gemini API Key. Please add one in Settings.');
+      setIsModalOpen(true);
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorder.current = new MediaRecorder(stream);
@@ -84,12 +91,8 @@ export default function App() {
   };
 
   const generateMinutes = async () => {
-    const apiKey = localStorage.getItem('gemini_api_key');
-    if (!apiKey) {
-      setIsModalOpen(true);
-      toast.error('API Key required before synthesis');
-      return;
-    }
+    const apiKey = localStorage.getItem('gemini_api_key') || "";
+    const model = localStorage.getItem('gemini_model') || "gemini-3.1-flash-lite-preview";
 
     if (audioChunks.length === 0) return;
 
@@ -97,6 +100,7 @@ export default function App() {
     const blob = new Blob(audioChunks, { type: 'audio/webm' });
     const formData = new FormData();
     formData.append('audio', blob, 'meeting.webm');
+    formData.append('model', model);
 
     try {
       toast.loading('Uploading audio to multimodal AI cluster...', { id: 'analyze' });

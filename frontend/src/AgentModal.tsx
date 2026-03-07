@@ -63,9 +63,10 @@ export default function AgentModal({ isOpen, onClose, onSave }: AgentModalProps)
                             onChange={(e) => setModel(e.target.value)}
                             className="w-full bg-surface border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/50 transition-all appearance-none"
                         >
-                            <option value="gemini-1.5-pro">Gemini 1.5 Pro (Deep Context)</option>
-                            <option value="gemini-1.5-flash">Gemini 1.5 Flash (Fast Audio)</option>
-                            <option value="gemini-2.0-flash">Gemini 2.0 Flash (Experimental)</option>
+                            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Deep Context)</option>
+                            <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (Fast Audio)</option>
+                            <option value="gemini-2.5-pro">Gemini 2.5 Pro (Search Grounding)</option>
+                            <option value="gemini-2.5-flash">Gemini 2.5 Flash (Search Grounding)</option>
                         </select>
                     </div>
                 </div>
