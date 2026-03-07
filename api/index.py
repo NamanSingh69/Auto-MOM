@@ -5,6 +5,7 @@ from flask_cors import CORS
 import google.generativeai as genai
 from pydantic import BaseModel
 from typing import List
+import requests
 
 app = Flask(__name__)
 # Enable CORS for local testing, assuming frontend is on port 5173
@@ -22,11 +23,32 @@ class MeetingMinutes(BaseModel):
 def health_check():
     return jsonify({"status": "healthy", "service": "AutoMOM-API"})
 
+@app.route('/api/models', methods=['GET'])
+def get_models():
+    api_key = request.headers.get("X-Gemini-Key")
+    if not api_key or not api_key.strip() or api_key == "null":
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("VITE_GEMINI_API_KEY") or "REDACTED_API_KEY"
+        
+    if not api_key:
+        return jsonify({"error": "Gemini API key missing"}), 401
+
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+        response = requests.get(url)
+        if response.status_code != 200:
+            return jsonify(response.json()), response.status_code
+        return jsonify(response.json()), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/synthesize', methods=['POST'])
 def synthesize_minutes():
     api_key = request.headers.get("X-Gemini-Key")
+    if not api_key or not api_key.strip() or api_key == "null":
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("VITE_GEMINI_API_KEY") or "REDACTED_API_KEY"
+        
     if not api_key:
-        return jsonify({"error": "Gemini API key missing in headers"}), 401
+        return jsonify({"error": "Gemini API key missing in headers or environment"}), 401
 
     if 'audio' not in request.files:
         return jsonify({"error": "No audio file uploaded"}), 400
@@ -40,6 +62,8 @@ def synthesize_minutes():
         _, temp_path = tempfile.mkstemp(suffix=".webm")
         audio_file.save(temp_path)
 
+        requested_model = request.form.get("model", "gemini-1.5-flash")
+        
         # Configure Gemini
         genai.configure(api_key=api_key)
 
@@ -48,10 +72,8 @@ def synthesize_minutes():
         gemini_file = genai.upload_file(temp_path, mime_type="audio/webm")
 
         # Define the model and instruction
-        # We use Flash for speed, but Pro is better for complex long meetings. 
-        # For this prototype we'll use Flash to minimize latency.
         model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash", 
+            model_name=requested_model, 
             system_instruction="You are a professional Executive Assistant synthesizing meeting minutes from the provided audio. Identify action items and key decisions. Output strictly in the requested JSON format."
         )
 

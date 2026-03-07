@@ -18,12 +18,7 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Check if API key exists on boot
-    const key = localStorage.getItem('gemini_api_key');
-    if (!key) {
-      setTimeout(() => setIsModalOpen(true), 1500);
-      toast('API boundary requires configuration.', { icon: '⚙️' });
-    }
+    // API key check removed to allow default fallback usage
   }, []);
 
   const handleSaveConfig = (key: string, model: string) => {
@@ -84,12 +79,8 @@ export default function App() {
   };
 
   const generateMinutes = async () => {
-    const apiKey = localStorage.getItem('gemini_api_key');
-    if (!apiKey) {
-      setIsModalOpen(true);
-      toast.error('API Key required before synthesis');
-      return;
-    }
+    const apiKey = localStorage.getItem('gemini_api_key') || "";
+    const model = localStorage.getItem('gemini_model') || "gemini-1.5-flash";
 
     if (audioChunks.length === 0) return;
 
@@ -97,6 +88,7 @@ export default function App() {
     const blob = new Blob(audioChunks, { type: 'audio/webm' });
     const formData = new FormData();
     formData.append('audio', blob, 'meeting.webm');
+    formData.append('model', model);
 
     try {
       toast.loading('Uploading audio to multimodal AI cluster...', { id: 'analyze' });
