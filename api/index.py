@@ -28,7 +28,7 @@ def health_check():
 def get_models():
     api_key = request.headers.get("X-Gemini-Key")
     if not api_key or not api_key.strip() or api_key == "null":
-        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("VITE_GEMINI_API_KEY") or "REDACTED_API_KEY"
+        api_key = os.environ.get("GEMINI_API_KEY")
         
     if not api_key:
         return jsonify({"error": "Gemini API key missing"}), 401
@@ -46,7 +46,7 @@ def get_models():
 def synthesize_minutes():
     api_key = request.headers.get("X-Gemini-Key")
     if not api_key or not api_key.strip() or api_key == "null":
-        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("VITE_GEMINI_API_KEY") or "REDACTED_API_KEY"
+        api_key = os.environ.get("GEMINI_API_KEY")
         
     if not api_key:
         return jsonify({"error": "Gemini API key missing in headers or environment"}), 401
