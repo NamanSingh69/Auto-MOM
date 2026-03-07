@@ -105,6 +105,40 @@ def generate_with_fallback(api_key: str, initial_model: str, contents, system_in
                 tools=tools
             )
             
+            # --- CONTEXT CACHING FOR 2.5 MODELS ON MASSIVE PAYLOADS --- #
+            token_count = 0
+            try:
+                # Approximate token count safely
+                token_count = model.count_tokens(contents).total_tokens
+            except Exception:
+                pass
+                
+            if token_count > 32000 and model_name.startswith("gemini-2.5"):
+                logger.info(f"Payload > 32k tokens ({token_count}). Engaging Context Caching API for {model_name}.")
+                try:
+                    import datetime
+                    
+                    cache = genai.caching.CachedContent.create(
+                        model=model_name,
+                        system_instruction=system_instruction,
+                        contents=contents,
+                        ttl=datetime.timedelta(minutes=15)
+                    )
+                    
+                    cached_model = genai.GenerativeModel.from_cached_content(
+                        cached_content=cache,
+                        tools=tools
+                    )
+                    
+                    response = cached_model.generate_content("Synthesize and process the cached payload.", **kwargs)
+                    
+                    # Cleanup cache immediately to save user costs
+                    cache.delete()
+                    return response, model_name
+                    
+                except Exception as cache_err:
+                    logger.warning(f"Failed to implement Context Caching: {cache_err}. Proceeding with standard generation.")
+            
             response = model.generate_content(contents, **kwargs)
             return response, model_name
         except Exception as e:
