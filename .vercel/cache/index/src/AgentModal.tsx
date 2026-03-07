@@ -1,0 +1,147 @@
+import { useState, useEffect } from 'react';
+import { Key, Save, X, Sparkles, Loader2 } from 'lucide-react';
+
+interface DiscoveredModel {
+    name: string;
+    displayName: string;
+    score: number;
+}
+
+interface AgentModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (key: string, model: string) => void;
+}
+
+export default function AgentModal({ isOpen, onClose, onSave }: AgentModalProps) {
+    const [apiKey, setApiKey] = useState('');
+    const [model, setModel] = useState('gemini-1.5-flash');
+    const [models, setModels] = useState<DiscoveredModel[]>([]);
+    const [isLoadingModels, setIsLoadingModels] = useState(false);
+
+    useEffect(() => {
+        const savedKey = localStorage.getItem('gemini_api_key');
+        const savedModel = localStorage.getItem('gemini_model');
+        if (savedKey) setApiKey(savedKey);
+        if (savedModel) setModel(savedModel);
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setIsLoadingModels(true);
+        const headers: Record<string, string> = {};
+        if (apiKey) Object.assign(headers, { 'X-Gemini-Key': apiKey });
+
+        fetch(import.meta.env.PROD ? '/api/models' : 'http://localhost:5000/api/models', { headers })
+            .then(res => res.json())
+            .then(data => {
+                if (data.models) {
+                    const discovered = data.models
+                        .filter((m: any) => m.supportedGenerationMethods?.includes("generateContent"))
+                        .map((m: any) => {
+                            const cleanName = m.name.replace("models/", "");
+                            let score = 0;
+                            if (cleanName.includes("pro")) score += 10;
+                            if (cleanName.includes("flash")) score += 5;
+                            return {
+                                name: cleanName,
+                                displayName: m.displayName || cleanName,
+                                score: score
+                            };
+                        })
+                        .sort((a: any, b: any) => b.score - a.score);
+
+                    setModels(discovered);
+                    if (discovered.length > 0 && !discovered.find((m: any) => m.name === model)) {
+                        setModel(discovered[0].name);
+                    }
+                }
+            })
+            .catch(console.error)
+            .finally(() => setIsLoadingModels(false));
+    }, [isOpen, apiKey]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-surface-2 border border-slate-700/50 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden shadow-brand-500/10">
+
+                {/* Header */}
+                <div className="flex justify-between items-center p-6 border-b border-slate-700/50">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-brand-500/10 flex items-center justify-center">
+                            <Sparkles className="w-5 h-5 text-brand-400" />
+                        </div>
+                        <h2 className="text-xl font-bold text-white tracking-tight">Agent Config</h2>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="text-slate-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-6">
+                    <div className="space-y-2">
+                        <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                            <Key size={16} className="text-brand-400" /> API Boundary (Gemini)
+                        </label>
+                        <input
+                            type="password"
+                            placeholder="Using public fallback key — paste your own for higher limits"
+                            value={apiKey}
+                            onChange={(e) => setApiKey(e.target.value)}
+                            className="w-full bg-surface border border-slate-700/50 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/50 transition-all font-mono text-sm"
+                            autoComplete="off"
+                        />
+                        <div className="text-[10px] text-slate-400 mt-2 leading-snug">
+                            ✅ A free public API key is active by default. Add your own for higher rate limits.<br />
+                            <strong className="text-slate-300">Free Tier Limits:</strong> 15 Requests/Min, 1,000,000 Tokens/Min, 1,500 Requests/Day.
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-sm font-semibold text-slate-300 flex items-center justify-between w-full">
+                            <span>Inference Engine</span>
+                            {isLoadingModels && <Loader2 size={14} className="animate-spin text-brand-400" />}
+                        </label>
+                        <select
+                            value={model}
+                            onChange={(e) => setModel(e.target.value)}
+                            className="w-full bg-surface border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/50 transition-all appearance-none"
+                        >
+                            {models.length > 0 ? (
+                                models.map(m => (
+                                    <option key={m.name} value={m.name}>{m.displayName}</option>
+                                ))
+                            ) : (
+                                <>
+                                    <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Deep Context)</option>
+                                    <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (Fast Audio)</option>
+                                    <option value="gemini-2.5-pro">Gemini 2.5 Pro (Search Grounding)</option>
+                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (Search Grounding)</option>
+                                </>
+                            )}
+                        </select>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="p-6 bg-slate-900/50 border-t border-slate-700/50 flex justify-end">
+                    <button
+                        onClick={() => {
+                            onSave(apiKey, model);
+                            onClose();
+                        }}
+                        className="bg-brand-600 hover:bg-brand-500 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(225,29,72,0.3)]"
+                    >
+                        <Save size={18} /> Save & Connect
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
