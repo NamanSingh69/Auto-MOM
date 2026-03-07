@@ -18,7 +18,10 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // API key check removed to allow default fallback usage
+    const apiKey = localStorage.getItem('gemini_api_key');
+    if (!apiKey) {
+      setIsModalOpen(true);
+    }
   }, []);
 
   const handleSaveConfig = (key: string, model: string) => {
@@ -28,6 +31,13 @@ export default function App() {
   };
 
   const startRecording = async () => {
+    const apiKey = localStorage.getItem('gemini_api_key');
+    if (!apiKey) {
+      toast.error('Local microphone recording requires your own Gemini API Key. Please add one in Settings.');
+      setIsModalOpen(true);
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorder.current = new MediaRecorder(stream);
@@ -80,7 +90,7 @@ export default function App() {
 
   const generateMinutes = async () => {
     const apiKey = localStorage.getItem('gemini_api_key') || "";
-    const model = localStorage.getItem('gemini_model') || "gemini-1.5-flash";
+    const model = localStorage.getItem('gemini_model') || "gemini-3.1-flash-lite-preview";
 
     if (audioChunks.length === 0) return;
 
