@@ -7,6 +7,10 @@ from pydantic import BaseModel
 from typing import List
 import requests
 from gemini_model_resolver import generate_with_fallback, get_dynamic_cascade
+from dotenv import load_dotenv
+
+# Load local .env variables
+load_dotenv()
 
 app = Flask(__name__)
 # Enable CORS for local testing, assuming frontend is on port 5173
