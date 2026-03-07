@@ -18,10 +18,7 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const apiKey = localStorage.getItem('gemini_api_key');
-    if (!apiKey) {
-      setIsModalOpen(true);
-    }
+    // Modal automatically opening removed as requested for local dev
   }, []);
 
   const handleSaveConfig = (key: string, model: string) => {

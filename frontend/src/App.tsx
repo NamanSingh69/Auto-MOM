@@ -18,12 +18,7 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Check if API key exists on boot
-    const key = localStorage.getItem('gemini_api_key');
-    if (!key) {
-      setTimeout(() => setIsModalOpen(true), 1500);
-      toast('API boundary requires configuration.', { icon: '⚙️' });
-    }
+    // Modal automatically opening removed as requested for local dev
   }, []);
 
   const handleSaveConfig = (key: string, model: string) => {
