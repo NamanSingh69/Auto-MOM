@@ -151,9 +151,18 @@ export default function App() {
     if (!consumeRateLimit()) return;
 
     setState('UPLOADING');
-    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+    
     const formData = new FormData();
-    formData.append('audio', blob, 'meeting.webm');
+    // Check if it's a File (from upload) or Blob (from recorder)
+    const isFile = audioChunks.length === 1 && audioChunks[0] instanceof File;
+    if (isFile) {
+      const file = audioChunks[0] as File;
+      formData.append('audio', file);
+    } else {
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      formData.append('audio', blob, 'meeting.webm');
+    }
+    
     formData.append('model', currentModel);
 
     try {

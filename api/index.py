@@ -59,8 +59,15 @@ def synthesize_minutes():
         return jsonify({"error": "Empty filename"}), 400
 
     try:
+        from werkzeug.utils import secure_filename
+        
+        # Get original extension and mime type
+        mime_type = audio_file.mimetype if audio_file.mimetype else "audio/webm"
+        filename = secure_filename(audio_file.filename) if audio_file.filename else "meeting.webm"
+        ext = os.path.splitext(filename)[1] or ".webm"
+
         # Save audio to a temporary file for Gemini SDK
-        _, temp_path = tempfile.mkstemp(suffix=".webm")
+        _, temp_path = tempfile.mkstemp(suffix=ext)
         audio_file.save(temp_path)
 
         requested_model = request.form.get("model", "gemini-3.1-pro")
@@ -69,8 +76,8 @@ def synthesize_minutes():
         genai.configure(api_key=api_key)
 
         # Upload the audio file to Google's File API for multimodal processing
-        print("Uploading to Gemini File API...")
-        gemini_file = genai.upload_file(temp_path, mime_type="audio/webm")
+        print(f"Uploading to Gemini File API... ({ext}, {mime_type})")
+        gemini_file = genai.upload_file(temp_path, mime_type=mime_type)
 
         response, model_used = generate_with_fallback(
             api_key=api_key,
