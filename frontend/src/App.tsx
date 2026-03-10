@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Square, Upload, FileAudio, Loader2, Sparkles, AlertCircle, Settings } from 'lucide-react';
+import { Mic, Square, Upload, FileAudio, FileVideo, Loader2, Sparkles, AlertCircle, Settings } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import AgentModal from './AgentModal';
 import { Skeleton } from './components/Skeleton';
@@ -143,7 +143,7 @@ export default function App() {
 
   const generateMinutes = async () => {
     if (!audioUrl || audioChunks.length === 0) {
-      toast.error('Please upload or record an audio file first.', { id: 'analyze-validation' });
+      toast.error('Please upload or record a media file first.', { id: 'analyze-validation' });
       return;
     }
     
@@ -169,10 +169,10 @@ export default function App() {
     const isFile = audioChunks.length === 1 && audioChunks[0] instanceof File;
     if (isFile) {
       const file = audioChunks[0] as File;
-      formData.append('audio', file);
+      formData.append('media', file);
     } else {
       const blob = new Blob(audioChunks, { type: 'audio/webm' });
-      formData.append('audio', blob, 'meeting.webm');
+      formData.append('media', blob, 'meeting.webm');
     }
     
     formData.append('model', currentModel);
@@ -264,7 +264,7 @@ export default function App() {
             Autonomous <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-rose-300">Minutes of Meeting</span>
           </h1>
           <p className="text-slate-400 text-lg max-w-2xl">
-            In-browser audio capture and LLM inference. Record your sync or upload an existing meeting file to generate structured action items instantly.
+            In-browser audio capture and LLM inference. Record your sync or upload an existing media file to generate structured action items instantly.
           </p>
         </div>
 
@@ -306,18 +306,18 @@ export default function App() {
           <div className="w-full flex justify-between items-center gap-4">
             <input
               type="file"
-              accept="audio/*"
+              accept="audio/*,video/*"
               ref={fileInputRef}
               className="hidden"
               onChange={handleFileUpload}
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              aria-label="Upload audio file"
+              aria-label="Upload media file"
               className="px-4 py-3 min-h-[44px] bg-slate-800/50 border border-slate-700 rounded-xl flex-1 flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors text-slate-300"
             >
-              <FileAudio size={18} />
-              {audioUrl ? 'Change File' : 'Upload Audio'}
+              {audioChunks.length > 0 && audioChunks[0].type.startsWith('video/') ? <FileVideo size={18} /> : <FileAudio size={18} />}
+              {audioUrl ? 'Change File' : 'Upload Media'}
             </button>
 
             <button
@@ -335,8 +335,12 @@ export default function App() {
           </div>
 
           {audioUrl && state !== 'RECORDING' && (
-            <div className="w-full mt-6 p-4 bg-slate-900 border border-slate-800 rounded-xl flex items-center gap-4">
-              <audio src={audioUrl} controls className="w-full h-10 custom-audio" />
+            <div className="w-full mt-6 p-4 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-center gap-4">
+              {audioChunks.length > 0 && audioChunks[0].type.startsWith('video/') ? (
+                <video src={audioUrl} controls className="w-full max-h-64 rounded bg-black" />
+              ) : (
+                <audio src={audioUrl} controls className="w-full h-10 custom-audio" />
+              )}
             </div>
           )}
 
