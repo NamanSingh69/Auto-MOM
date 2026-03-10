@@ -153,53 +153,100 @@ export default function App() {
     }
 
     if (state === 'UPLOADING' || state === 'ANALYZING') {
-      return; // Silently ignore multiple clicks while already processing
+      return;
     }
 
-    // Check per-minute rate limit
     if (!consumeRateLimit()) return;
 
     const currentApiKey = localStorage.getItem('gemini_api_key') || "";
     const currentModel = localStorage.getItem('gemini_model') || "gemini-3.1-flash-lite-preview";
+    const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:5000';
 
     setState('UPLOADING');
-    
-    const formData = new FormData();
-    // Check if it's a File (from upload) or Blob (from recorder)
-    const isFile = audioChunks.length === 1 && audioChunks[0] instanceof File;
-    if (isFile) {
-      const file = audioChunks[0] as File;
-      formData.append('media', file);
-    } else {
-      const blob = new Blob(audioChunks, { type: 'audio/webm' });
-      formData.append('media', blob, 'meeting.webm');
-    }
-    
-    formData.append('model', currentModel);
 
     try {
-      toast.loading('Uploading audio to multimodal AI cluster...', { id: 'analyze' });
+      // Build the blob from chunks
+      const isFile = audioChunks.length === 1 && audioChunks[0] instanceof File;
+      const mediaBlob = isFile
+        ? (audioChunks[0] as File)
+        : new Blob(audioChunks, { type: 'audio/webm' });
+      const mimeType = mediaBlob.type || 'audio/webm';
+      const fileName = isFile ? (audioChunks[0] as File).name : 'meeting.webm';
 
-      const API_URL = import.meta.env.PROD ? '/api/synthesize' : 'http://localhost:5000/api/synthesize';
+      // --- STEP 1: Get a Resumable Upload URL from our backend ---
+      toast.loading('Requesting secure upload session...', { id: 'analyze' });
 
-      const response = await fetch(API_URL, {
+      const urlRes = await fetch(`${API_BASE}/api/get-upload-url`, {
         method: 'POST',
         headers: {
-          'X-Gemini-Key': currentApiKey
+          'Content-Type': 'application/json',
+          'X-Gemini-Key': currentApiKey,
         },
-        body: formData
+        body: JSON.stringify({
+          mime_type: mimeType,
+          content_length: mediaBlob.size,
+          display_name: fileName,
+        }),
       });
 
-      if (!response.ok) {
-        if (response.status === 429) {
-          throw new Error("⏳ Rate limit reached — try again in ~1 minute, or switch to Fast mode.");
-        }
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Server rejected the request with status ${response.status}`);
+      if (!urlRes.ok) {
+        const errData = await urlRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed to get upload URL (${urlRes.status})`);
       }
 
+      const { upload_url } = await urlRes.json();
+
+      // --- STEP 2: Upload file bytes directly to Google ---
+      toast.loading('Uploading media directly to Google AI...', { id: 'analyze' });
+
+      const uploadRes = await fetch(upload_url, {
+        method: 'POST',
+        headers: {
+          'Content-Length': String(mediaBlob.size),
+          'X-Goog-Upload-Offset': '0',
+          'X-Goog-Upload-Command': 'upload, finalize',
+        },
+        body: mediaBlob,
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error(`Google upload failed with status ${uploadRes.status}`);
+      }
+
+      const uploadData = await uploadRes.json();
+      const fileUri = uploadData?.file?.uri;
+      const fileSdkName = uploadData?.file?.name;
+
+      if (!fileSdkName) {
+        throw new Error('Upload succeeded but no file reference was returned.');
+      }
+
+      // --- STEP 3: Send lightweight JSON to our backend for synthesis ---
       setState('ANALYZING');
-      const data = await response.json();
+      toast.loading('AI is analyzing your meeting...', { id: 'analyze' });
+
+      const synthRes = await fetch(`${API_BASE}/api/synthesize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Gemini-Key': currentApiKey,
+        },
+        body: JSON.stringify({
+          file_uri: fileUri,
+          file_name: fileSdkName,
+          model: currentModel,
+        }),
+      });
+
+      if (!synthRes.ok) {
+        if (synthRes.status === 429) {
+          throw new Error("⏳ Rate limit reached — try again in ~1 minute, or switch to Fast mode.");
+        }
+        const errorData = await synthRes.json().catch(() => ({}));
+        throw new Error(errorData.error || `Synthesis failed with status ${synthRes.status}`);
+      }
+
+      const data = await synthRes.json();
       trackUsage(data._model_used || currentModel);
 
       toast.success('Minutes generated successfully!', { id: 'analyze' });
