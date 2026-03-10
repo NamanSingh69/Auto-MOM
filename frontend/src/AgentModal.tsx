@@ -26,8 +26,8 @@ export default function AgentModal({ isOpen, onClose, onSave, initialMode = 'fas
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-surface-2 border border-slate-700/50 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden shadow-brand-500/10">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-label="Agent Configuration">
+            <div className="bg-surface-2 border border-slate-700/50 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden shadow-brand-500/10 max-h-[80vh] overflow-y-auto">
 
                 {/* Header */}
                 <div className="flex justify-between items-center p-6 border-b border-slate-700/50">
@@ -39,7 +39,8 @@ export default function AgentModal({ isOpen, onClose, onSave, initialMode = 'fas
                     </div>
                     <button
                         onClick={onClose}
-                        className="text-slate-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5"
+                        aria-label="Close settings"
+                        className="text-slate-400 hover:text-white transition-colors p-2 min-h-[44px] min-w-[44px] rounded-lg hover:bg-white/5 flex items-center justify-center"
                     >
                         <X size={20} />
                     </button>
@@ -53,12 +54,16 @@ export default function AgentModal({ isOpen, onClose, onSave, initialMode = 'fas
                         </label>
                         <input
                             type="password"
-                            placeholder="AIzaSy..."
+                            placeholder="Leave blank to use free public key"
                             value={apiKey}
                             onChange={(e) => setApiKey(e.target.value)}
-                            className="w-full bg-surface border border-slate-700/50 rounded-xl px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/50 transition-all font-mono text-sm"
+                            aria-label="Gemini API key"
+                            className="w-full bg-surface border border-slate-700/50 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/50 transition-all font-mono text-sm"
                             autoComplete="off"
                         />
+                        <p className="text-[10px] text-slate-400 mt-2 leading-snug">
+                            ✅ A free public API key is active by default. Add your own for higher rate limits.
+                        </p>
                     </div>
 
                     <div className="space-y-4">
@@ -66,14 +71,16 @@ export default function AgentModal({ isOpen, onClose, onSave, initialMode = 'fas
                             <label className="text-sm font-semibold text-slate-300">Agent Mode & Inference Engine</label>
                             <div className="flex bg-slate-800/50 rounded-lg p-1">
                                 <button
-                                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${mode === 'pro' ? 'bg-brand-500 text-white' : 'text-slate-400 hover:text-white'}`}
+                                    className={`px-3 py-1 min-h-[44px] text-xs font-bold rounded-md transition-all ${mode === 'pro' ? 'bg-brand-500 text-white' : 'text-slate-400 hover:text-white'}`}
                                     onClick={() => { setMode('pro'); setModel('gemini-3.1-pro-preview'); }}
+                                    aria-label="Switch to Pro mode"
                                 >
                                     PRO
                                 </button>
                                 <button
-                                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${mode === 'fast' ? 'bg-brand-500 text-white' : 'text-slate-400 hover:text-white'}`}
+                                    className={`px-3 py-1 min-h-[44px] text-xs font-bold rounded-md transition-all ${mode === 'fast' ? 'bg-brand-500 text-white' : 'text-slate-400 hover:text-white'}`}
                                     onClick={() => { setMode('fast'); setModel('gemini-3.1-flash-lite-preview'); }}
+                                    aria-label="Switch to Fast mode"
                                 >
                                     FAST
                                 </button>
@@ -120,10 +127,10 @@ export default function AgentModal({ isOpen, onClose, onSave, initialMode = 'fas
                             onSave(apiKey, model, mode);
                             onClose();
                         }}
-                        disabled={!apiKey.trim()}
-                        className="bg-brand-600 hover:bg-brand-500 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(225,29,72,0.3)] disabled:shadow-none"
+                        aria-label="Save agent configuration"
+                        className="bg-brand-600 hover:bg-brand-500 text-white px-6 py-2.5 min-h-[44px] rounded-xl font-bold flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(225,29,72,0.3)]"
                     >
-                        <Save size={18} /> Default Profile
+                        <Save size={18} /> Save & Connect
                     </button>
                 </div>
             </div>
