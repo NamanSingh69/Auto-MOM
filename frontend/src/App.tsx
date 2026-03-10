@@ -4,6 +4,7 @@ import { toast, Toaster } from 'sonner';
 import AgentModal from './AgentModal';
 import { Skeleton } from './components/Skeleton';
 import { EmptyState } from './components/EmptyState';
+import { RateLimitBadge, consumeRateLimit, canMakeRequest } from './components/RateLimitBadge';
 
 type AppState = 'IDLE' | 'RECORDING' | 'UPLOADING' | 'ANALYZING' | 'SUCCESS' | 'ERROR';
 
@@ -18,6 +19,7 @@ export default function App() {
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gemini-3.1-flash-lite-preview');
   const [quota, setQuota] = useState({ remaining: 1000, limit: 1000 });
+  const [rateLimitOk, setRateLimitOk] = useState(true);
 
   const DAILY_LIMITS: Record<string, Record<string, number>> = {
     "pro": { "3.1": 50, "2.5": 25 },
@@ -59,6 +61,14 @@ export default function App() {
   const timerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Poll rate limit status for button state
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRateLimitOk(canMakeRequest());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     const savedKey = localStorage.getItem('gemini_api_key');
     const savedModel = localStorage.getItem('gemini_model');
@@ -81,13 +91,6 @@ export default function App() {
   };
 
   const startRecording = async () => {
-    const apiKey = localStorage.getItem('gemini_api_key');
-    if (!apiKey) {
-      toast.error('Local microphone recording requires your own Gemini API Key. Please add one in Settings.');
-      setIsModalOpen(true);
-      return;
-    }
-
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorder.current = new MediaRecorder(stream);
@@ -139,16 +142,19 @@ export default function App() {
   };
 
   const generateMinutes = async () => {
-    const apiKey = localStorage.getItem('gemini_api_key') || "";
-    const model = localStorage.getItem('gemini_model') || "gemini-3.1-flash-lite-preview";
+    const currentApiKey = localStorage.getItem('gemini_api_key') || "";
+    const currentModel = localStorage.getItem('gemini_model') || "gemini-3.1-flash-lite-preview";
 
     if (audioChunks.length === 0) return;
+
+    // Check per-minute rate limit
+    if (!consumeRateLimit()) return;
 
     setState('UPLOADING');
     const blob = new Blob(audioChunks, { type: 'audio/webm' });
     const formData = new FormData();
     formData.append('audio', blob, 'meeting.webm');
-    formData.append('model', model);
+    formData.append('model', currentModel);
 
     try {
       toast.loading('Uploading audio to multimodal AI cluster...', { id: 'analyze' });
@@ -158,7 +164,7 @@ export default function App() {
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
-          'X-Gemini-Key': apiKey
+          'X-Gemini-Key': currentApiKey
         },
         body: formData
       });
@@ -173,7 +179,7 @@ export default function App() {
 
       setState('ANALYZING');
       const data = await response.json();
-      trackUsage(data._model_used || model);
+      trackUsage(data._model_used || currentModel);
 
       toast.success('Minutes generated successfully!', { id: 'analyze' });
       setMinutesData(data);
@@ -198,13 +204,15 @@ export default function App() {
 
       {/* Settings Gear & Mode Toggle */}
       <div className="absolute top-6 right-6 flex items-center gap-3 z-20">
+        <RateLimitBadge />
         <button
           onClick={() => {
             const newMode = mode === 'pro' ? 'fast' : 'pro';
             const newModel = newMode === 'pro' ? 'gemini-3.1-pro-preview' : 'gemini-3.1-flash-lite-preview';
             handleSaveConfig(apiKey, newModel, newMode);
           }}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${mode === 'pro'
+          aria-label={`Switch to ${mode === 'pro' ? 'Fast' : 'Pro'} mode`}
+          className={`px-4 py-2 min-h-[44px] rounded-xl text-xs font-bold transition-all border ${mode === 'pro'
             ? 'bg-gradient-to-br from-indigo-600 to-brand-600 border-indigo-500/30 text-white shadow-lg shadow-indigo-500/20'
             : 'bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 text-slate-300'
             }`}
@@ -213,7 +221,8 @@ export default function App() {
         </button>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="p-3 rounded-xl bg-surface-2 border border-slate-800 text-slate-400 hover:text-white hover:border-brand-500/50 transition-all relative"
+          aria-label="Open settings"
+          className="p-3 min-h-[44px] min-w-[44px] rounded-xl bg-surface-2 border border-slate-800 text-slate-400 hover:text-white hover:border-brand-500/50 transition-all relative flex items-center justify-center"
         >
           <Settings size={20} />
           <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-[#12141d] ${quota.remaining / quota.limit > 0.5 ? 'bg-brand-500' : 'bg-rose-500'}`}></div>
@@ -250,13 +259,18 @@ export default function App() {
 
           <div className="flex gap-6 mb-8">
             {state === 'RECORDING' ? (
-              <button onClick={stopRecording} className="w-20 h-20 rounded-full bg-brand-500 hover:bg-brand-600 flex items-center justify-center transition-transform hover:scale-105 shadow-[0_0_30px_rgba(244,63,94,0.4)]">
+              <button
+                onClick={stopRecording}
+                aria-label="Stop recording"
+                className="w-20 h-20 rounded-full bg-brand-500 hover:bg-brand-600 flex items-center justify-center transition-transform hover:scale-105 shadow-[0_0_30px_rgba(244,63,94,0.4)]"
+              >
                 <Square className="w-8 h-8 fill-white text-white" />
               </button>
             ) : (
               <button
                 onClick={startRecording}
                 disabled={state === 'UPLOADING' || state === 'ANALYZING'}
+                aria-label="Start recording meeting"
                 className="w-20 h-20 rounded-full bg-slate-800 border border-slate-700 hover:border-brand-500/50 hover:bg-slate-700 flex items-center justify-center transition-all disabled:opacity-50 group"
               >
                 <Mic className="w-8 h-8 text-brand-400 group-hover:text-brand-300 transition-colors" />
@@ -278,7 +292,8 @@ export default function App() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl flex-1 flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors text-slate-300"
+              aria-label="Upload audio file"
+              className="px-4 py-3 min-h-[44px] bg-slate-800/50 border border-slate-700 rounded-xl flex-1 flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors text-slate-300"
             >
               <FileAudio size={18} />
               {audioUrl ? 'Change File' : 'Upload Audio'}
@@ -286,8 +301,9 @@ export default function App() {
 
             <button
               onClick={generateMinutes}
-              disabled={!audioUrl || state === 'UPLOADING' || state === 'ANALYZING' || state === 'RECORDING'}
-              className="px-6 py-3 bg-brand-600 disabled:bg-slate-800 disabled:text-slate-500 rounded-xl flex-1 flex items-center justify-center gap-2 hover:bg-brand-500 transition-colors font-bold text-white shadow-lg disabled:shadow-none"
+              disabled={!audioUrl || state === 'UPLOADING' || state === 'ANALYZING' || state === 'RECORDING' || !rateLimitOk}
+              aria-label="Synthesize meeting minutes"
+              className="px-6 py-3 min-h-[44px] bg-brand-600 disabled:bg-slate-800 disabled:text-slate-500 rounded-xl flex-1 flex items-center justify-center gap-2 hover:bg-brand-500 transition-colors font-bold text-white shadow-lg disabled:shadow-none"
             >
               {state === 'UPLOADING' || state === 'ANALYZING' ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
               Synthesize
