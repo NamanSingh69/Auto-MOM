@@ -4,19 +4,24 @@ import { Key, Save, X, Sparkles } from 'lucide-react';
 interface AgentModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (key: string, model: string) => void;
+    onSave: (key: string, model: string, mode: 'pro' | 'fast') => void;
+    initialMode?: 'pro' | 'fast';
+    initialModel?: string;
+    quotaRemaining?: number;
+    quotaLimit?: number;
 }
 
-export default function AgentModal({ isOpen, onClose, onSave }: AgentModalProps) {
+export default function AgentModal({ isOpen, onClose, onSave, initialMode = 'fast', initialModel = 'gemini-3.1-flash-lite-preview', quotaRemaining = 1000, quotaLimit = 1000 }: AgentModalProps) {
     const [apiKey, setApiKey] = useState('');
-    const [model, setModel] = useState('gemini-1.5-flash');
+    const [model, setModel] = useState(initialModel);
+    const [mode, setMode] = useState<'pro' | 'fast'>(initialMode);
 
     useEffect(() => {
         const savedKey = localStorage.getItem('gemini_api_key');
-        const savedModel = localStorage.getItem('gemini_model');
         if (savedKey) setApiKey(savedKey);
-        if (savedModel) setModel(savedModel);
-    }, [isOpen]);
+        setModel(initialModel);
+        setMode(initialMode);
+    }, [isOpen, initialModel, initialMode]);
 
     if (!isOpen) return null;
 
@@ -56,18 +61,55 @@ export default function AgentModal({ isOpen, onClose, onSave }: AgentModalProps)
                         />
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-semibold text-slate-300">Inference Engine</label>
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center mb-1">
+                            <label className="text-sm font-semibold text-slate-300">Agent Mode & Inference Engine</label>
+                            <div className="flex bg-slate-800/50 rounded-lg p-1">
+                                <button
+                                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${mode === 'pro' ? 'bg-brand-500 text-white' : 'text-slate-400 hover:text-white'}`}
+                                    onClick={() => { setMode('pro'); setModel('gemini-3.1-pro-preview'); }}
+                                >
+                                    PRO
+                                </button>
+                                <button
+                                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${mode === 'fast' ? 'bg-brand-500 text-white' : 'text-slate-400 hover:text-white'}`}
+                                    onClick={() => { setMode('fast'); setModel('gemini-3.1-flash-lite-preview'); }}
+                                >
+                                    FAST
+                                </button>
+                            </div>
+                        </div>
                         <select
                             value={model}
                             onChange={(e) => setModel(e.target.value)}
                             className="w-full bg-surface border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/50 transition-all appearance-none"
                         >
-                            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Deep Context)</option>
-                            <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (Fast Audio)</option>
-                            <option value="gemini-2.5-pro">Gemini 2.5 Pro (Search Grounding)</option>
-                            <option value="gemini-2.5-flash">Gemini 2.5 Flash (Search Grounding)</option>
+                            {mode === 'pro' ? (
+                                <>
+                                    <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Deep Context)</option>
+                                    <option value="gemini-2.5-pro">Gemini 2.5 Pro (Search Grounding)</option>
+                                </>
+                            ) : (
+                                <>
+                                    <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (Fast Audio)</option>
+                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (Search Grounding)</option>
+                                </>
+                            )}
                         </select>
+                    </div>
+
+                    {/* Rate Limit Display */}
+                    <div className="bg-slate-800/30 p-4 rounded-xl border border-slate-700/50">
+                        <div className="flex justify-between text-xs mb-1">
+                            <span className="text-slate-400 uppercase font-semibold">Daily Quota</span>
+                            <span className="text-white font-medium">{quotaRemaining} / {quotaLimit}</span>
+                        </div>
+                        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-2">
+                            <div
+                                className={`h-full transition-all duration-500 ${quotaRemaining / quotaLimit > 0.5 ? 'bg-brand-500' : quotaRemaining / quotaLimit > 0.2 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                style={{ width: `${Math.max(0, Math.min(100, (quotaRemaining / quotaLimit) * 100))}%` }}
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -75,7 +117,7 @@ export default function AgentModal({ isOpen, onClose, onSave }: AgentModalProps)
                 <div className="p-6 bg-slate-900/50 border-t border-slate-700/50 flex justify-end">
                     <button
                         onClick={() => {
-                            onSave(apiKey, model);
+                            onSave(apiKey, model, mode);
                             onClose();
                         }}
                         disabled={!apiKey.trim()}
