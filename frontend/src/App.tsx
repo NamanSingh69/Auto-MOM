@@ -142,13 +142,25 @@ export default function App() {
   };
 
   const generateMinutes = async () => {
-    const currentApiKey = localStorage.getItem('gemini_api_key') || "";
-    const currentModel = localStorage.getItem('gemini_model') || "gemini-3.1-flash-lite-preview";
+    if (!audioUrl || audioChunks.length === 0) {
+      toast.error('Please upload or record an audio file first.', { id: 'analyze-validation' });
+      return;
+    }
+    
+    if (state === 'RECORDING') {
+      toast.error('Please stop recording before synthesizing.', { id: 'analyze-validation' });
+      return;
+    }
 
-    if (audioChunks.length === 0) return;
+    if (state === 'UPLOADING' || state === 'ANALYZING') {
+      return; // Silently ignore multiple clicks while already processing
+    }
 
     // Check per-minute rate limit
     if (!consumeRateLimit()) return;
+
+    const currentApiKey = localStorage.getItem('gemini_api_key') || "";
+    const currentModel = localStorage.getItem('gemini_model') || "gemini-3.1-flash-lite-preview";
 
     setState('UPLOADING');
     
@@ -310,9 +322,12 @@ export default function App() {
 
             <button
               onClick={generateMinutes}
-              disabled={!audioUrl || state === 'UPLOADING' || state === 'ANALYZING' || state === 'RECORDING' || !rateLimitOk}
               aria-label="Synthesize meeting minutes"
-              className="px-6 py-3 min-h-[44px] bg-brand-600 disabled:bg-slate-800 disabled:text-slate-500 rounded-xl flex-1 flex items-center justify-center gap-2 hover:bg-brand-500 transition-colors font-bold text-white shadow-lg disabled:shadow-none"
+              className={`px-6 py-3 min-h-[44px] rounded-xl flex-1 flex items-center justify-center gap-2 transition-colors font-bold text-white shadow-lg ${
+                state === 'UPLOADING' || state === 'ANALYZING' || !rateLimitOk
+                  ? 'bg-slate-800 text-slate-500 shadow-none cursor-pointer'
+                  : 'bg-brand-600 hover:bg-brand-500'
+              }`}
             >
               {state === 'UPLOADING' || state === 'ANALYZING' ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
               Synthesize
