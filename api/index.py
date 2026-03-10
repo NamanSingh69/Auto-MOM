@@ -51,24 +51,24 @@ def synthesize_minutes():
     if not api_key:
         return jsonify({"error": "Gemini API key missing in headers or environment"}), 401
 
-    if 'audio' not in request.files:
-        return jsonify({"error": "No audio file uploaded"}), 400
+    media_file = request.files.get('media') or request.files.get('audio')
+    if not media_file:
+        return jsonify({"error": "No media file uploaded"}), 400
 
-    audio_file = request.files['audio']
-    if audio_file.filename == '':
+    if media_file.filename == '':
         return jsonify({"error": "Empty filename"}), 400
 
     try:
         from werkzeug.utils import secure_filename
         
         # Get original extension and mime type
-        mime_type = audio_file.mimetype if audio_file.mimetype else "audio/webm"
-        filename = secure_filename(audio_file.filename) if audio_file.filename else "meeting.webm"
+        mime_type = media_file.mimetype if media_file.mimetype else "audio/webm"
+        filename = secure_filename(media_file.filename) if media_file.filename else "meeting.webm"
         ext = os.path.splitext(filename)[1] or ".webm"
 
-        # Save audio to a temporary file for Gemini SDK
+        # Save media to a temporary file for Gemini SDK
         _, temp_path = tempfile.mkstemp(suffix=ext)
-        audio_file.save(temp_path)
+        media_file.save(temp_path)
 
         requested_model = request.form.get("model", "gemini-3.1-pro")
         
@@ -82,8 +82,8 @@ def synthesize_minutes():
         response, model_used = generate_with_fallback(
             api_key=api_key,
             initial_model=requested_model,
-            contents=[gemini_file, "Summarize this meeting audio into the required JSON schema."],
-            system_instruction="You are a professional Executive Assistant synthesizing meeting minutes from the provided audio. Identify action items and key decisions. Output strictly in the requested JSON format.",
+            contents=[gemini_file, "Summarize this meeting media into the required JSON schema."],
+            system_instruction="You are a professional Executive Assistant synthesizing meeting minutes from the provided audio/video. Identify action items and key decisions. Output strictly in the requested JSON format.",
             response_schema=MeetingMinutes,
             response_mime_type="application/json"
         )
@@ -105,7 +105,7 @@ def synthesize_minutes():
         return jsonify(payload), 200
 
     except Exception as e:
-        print(f"Error synthesizing audio: {str(e)}")
+        print(f"Error synthesizing media: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 # Serverless entrypoint for Vercel
