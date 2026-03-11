@@ -217,9 +217,6 @@ export default function App() {
         if (synthRes.status === 429) {
           throw new Error("⏳ Rate limit reached — try again in ~1 minute, or switch to Fast mode.");
         }
-        if (synthRes.status === 413) {
-          throw new Error("File too large. Vercel limits uploads to 4.5MB. Please upload a shorter file or switch to a local environment.");
-        }
         const errorData = await synthRes.json().catch(() => ({}));
         throw new Error(errorData.error || `Synthesis failed with status ${synthRes.status}`);
       }
