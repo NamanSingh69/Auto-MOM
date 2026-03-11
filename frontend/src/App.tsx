@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Square, Upload, FileAudio, FileVideo, Loader2, Sparkles, AlertCircle, Settings } from 'lucide-react';
+import { Mic, Square, Upload, FileAudio, FileVideo, Loader2, Sparkles, AlertCircle, Settings, Download, CheckCircle2 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import AgentModal from './AgentModal';
 import { Skeleton } from './components/Skeleton';
@@ -7,11 +7,13 @@ import { EmptyState } from './components/EmptyState';
 import { RateLimitBadge, consumeRateLimit, canMakeRequest } from './components/RateLimitBadge';
 
 type AppState = 'IDLE' | 'RECORDING' | 'UPLOADING' | 'ANALYZING' | 'SUCCESS' | 'ERROR';
+type AudioSource = 'none' | 'recorded' | 'uploaded';
 
 export default function App() {
   const [state, setState] = useState<AppState>('IDLE');
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioSource, setAudioSource] = useState<AudioSource>('none');
   const [recordingTime, setRecordingTime] = useState(0);
   const [minutesData, setMinutesData] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -105,6 +107,7 @@ export default function App() {
         const url = URL.createObjectURL(audioBlob);
         setAudioChunks(chunks);
         setAudioUrl(url);
+        setAudioSource('recorded');
       };
 
       mediaRecorder.current.start();
@@ -137,8 +140,22 @@ export default function App() {
       const url = URL.createObjectURL(file);
       setAudioUrl(url);
       setAudioChunks([file]); // Wrap file as Blob
+      setAudioSource('uploaded');
       toast.success(`Attached ${file.name}`);
     }
+  };
+
+  const saveRecording = () => {
+    if (!audioChunks.length || audioSource !== 'recorded') return;
+    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    const url = URL.createObjectURL(audioBlob);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `meeting-recording-${timestamp}.webm`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Recording saved to your device!');
   };
 
   const generateMinutes = async () => {
@@ -310,6 +327,36 @@ export default function App() {
           </p>
         </div>
 
+        {/* How It Works Steps */}
+        <div className="w-full max-w-3xl mb-10">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { step: '1', icon: <Mic size={18} />, label: 'Record', desc: 'Capture live meeting audio in-browser', active: state === 'RECORDING' },
+              { step: '2', icon: <Download size={18} />, label: 'Save', desc: 'Download the recording to your device', active: audioSource === 'recorded' && state === 'IDLE' && !!audioUrl },
+              { step: '3', icon: <Upload size={18} />, label: 'Upload', desc: 'Or skip — attach an existing audio/video file', active: audioSource === 'uploaded' },
+              { step: '4', icon: <Sparkles size={18} />, label: 'Synthesize', desc: 'AI generates structured meeting minutes', active: state === 'UPLOADING' || state === 'ANALYZING' || state === 'SUCCESS' },
+            ].map(({ step, icon, label, desc, active }) => (
+              <div
+                key={step}
+                className={`relative flex flex-col items-center text-center p-4 rounded-2xl border transition-all ${
+                  active
+                    ? 'border-brand-500/50 bg-brand-500/10 shadow-lg shadow-brand-500/10'
+                    : 'border-slate-800 bg-slate-900/40'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 text-sm font-bold ${
+                  active ? 'bg-brand-500 text-white' : 'bg-slate-800 text-slate-500'
+                }`}>
+                  {state === 'SUCCESS' && step === '4' ? <CheckCircle2 size={16} /> : step}
+                </div>
+                <div className={`mb-1 ${ active ? 'text-brand-400' : 'text-slate-500' }`}>{icon}</div>
+                <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${ active ? 'text-white' : 'text-slate-400' }`}>{label}</p>
+                <p className="text-[11px] text-slate-500 leading-snug hidden md:block">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Core Interface */}
         <div className="glass-card w-full max-w-xl p-8 flex flex-col items-center relative overflow-hidden border-rose-500/20 mb-12">
           {state === 'RECORDING' && (
@@ -377,11 +424,26 @@ export default function App() {
           </div>
 
           {audioUrl && state !== 'RECORDING' && (
-            <div className="w-full mt-6 p-4 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-center gap-4">
-              {audioChunks.length > 0 && audioChunks[0].type.startsWith('video/') ? (
-                <video src={audioUrl} controls className="w-full max-h-64 rounded bg-black" />
-              ) : (
-                <audio src={audioUrl} controls className="w-full h-10 custom-audio" />
+            <div className="w-full mt-6 space-y-3">
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-center gap-4">
+                {audioChunks.length > 0 && audioChunks[0].type.startsWith('video/') ? (
+                  <video src={audioUrl} controls className="w-full max-h-64 rounded bg-black" />
+                ) : (
+                  <audio src={audioUrl} controls className="w-full h-10 custom-audio" />
+                )}
+              </div>
+
+              {/* Save Recording button — only shows for in-browser recorded audio */}
+              {audioSource === 'recorded' && (
+                <button
+                  onClick={saveRecording}
+                  aria-label="Save recording to device"
+                  className="w-full py-3 min-h-[44px] rounded-xl border border-brand-500/40 bg-brand-500/10 hover:bg-brand-500/20 text-brand-300 hover:text-brand-200 flex items-center justify-center gap-2 transition-all text-sm font-semibold"
+                >
+                  <Download size={16} />
+                  Save Recording to Device
+                  <span className="text-xs text-brand-500/70 font-normal ml-1">(.webm)</span>
+                </button>
               )}
             </div>
           )}
