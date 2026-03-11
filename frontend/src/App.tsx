@@ -202,7 +202,8 @@ export default function App() {
       const uploadRes = await fetch(upload_url, {
         method: 'POST',
         headers: {
-          'Content-Length': String(mediaBlob.size),
+          // NOTE: Do NOT set Content-Length — it's a forbidden header in browsers
+          // and will cause fetch() to fail silently. The browser sets it automatically.
           'X-Goog-Upload-Offset': '0',
           'X-Goog-Upload-Command': 'upload, finalize',
         },
@@ -210,7 +211,8 @@ export default function App() {
       });
 
       if (!uploadRes.ok) {
-        throw new Error(`Google upload failed with status ${uploadRes.status}`);
+        const errText = await uploadRes.text().catch(() => 'no body');
+        throw new Error(`Google upload failed (${uploadRes.status}): ${errText}`);
       }
 
       const uploadData = await uploadRes.json();
