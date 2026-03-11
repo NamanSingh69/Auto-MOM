@@ -81,27 +81,8 @@ def synthesize_minutes():
             return jsonify({"error": "Missing file_uri or file_name in JSON body"}), 400
 
         try:
-            import time
-
-            # Poll until file is ACTIVE (Google processes files asynchronously)
-            max_wait_seconds = 60
-            poll_interval = 2
-            elapsed = 0
-            gemini_file = None
-            while elapsed < max_wait_seconds:
-                gemini_file = genai.get_file(file_name)
-                state = getattr(gemini_file, "state", None)
-                # state can be a proto enum or a string; normalize to string
-                state_str = str(state).upper() if state else ""
-                if "ACTIVE" in state_str:
-                    break
-                if "FAILED" in state_str:
-                    return jsonify({"error": "File processing failed on Google's side. Please try again."}), 400
-                print(f"File {file_name} state={state_str}, waiting...")
-                time.sleep(poll_interval)
-                elapsed += poll_interval
-            else:
-                return jsonify({"error": f"Timed out waiting for file to become ACTIVE after {max_wait_seconds}s."}), 504
+            # File should already be ACTIVE (frontend polls before calling this)
+            gemini_file = genai.get_file(file_name)
 
             response, model_used = generate_with_fallback(
                 api_key=api_key,
