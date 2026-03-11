@@ -1,4 +1,9 @@
+import sys
 import os
+# Ensure this file's directory (api/) is on the path so local modules
+# like gemini_model_resolver are importable when Vercel CWD is /var/task
+sys.path.insert(0, os.path.dirname(__file__))
+
 import json
 import tempfile
 from flask import Flask, request, jsonify
