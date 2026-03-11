@@ -54,47 +54,6 @@ def get_models():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/get-upload-url', methods=['POST'])
-def get_upload_url():
-    """
-    Generates a Google Resumable Upload URL that the frontend can use
-    to upload large files directly to Gemini, bypassing the Vercel 4.5MB limit.
-    """
-    api_key = _resolve_api_key()
-    if not api_key:
-        return jsonify({"error": "Gemini API key missing"}), 401
-
-    data = request.get_json(silent=True) or {}
-    mime_type = data.get("mime_type", "audio/webm")
-    content_length = data.get("content_length", 0)
-    display_name = data.get("display_name", "meeting-media")
-
-    try:
-        url = f"https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=resumable&key={api_key}"
-        headers = {
-            "X-Goog-Upload-Protocol": "resumable",
-            "X-Goog-Upload-Command": "start",
-            "X-Goog-Upload-Header-Content-Length": str(content_length),
-            "X-Goog-Upload-Header-Content-Type": mime_type,
-            "Content-Type": "application/json",
-        }
-        body = json.dumps({"file": {"display_name": display_name}})
-
-        resp = http_requests.post(url, headers=headers, data=body, timeout=15)
-
-        if resp.status_code != 200:
-            return jsonify({"error": f"Google API returned {resp.status_code}: {resp.text}"}), resp.status_code
-
-        upload_url = resp.headers.get("X-Goog-Upload-URL")
-        if not upload_url:
-            return jsonify({"error": "No upload URL returned from Google"}), 502
-
-        return jsonify({"upload_url": upload_url}), 200
-
-    except Exception as e:
-        print(f"Error getting upload URL: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
 
 @app.route('/api/synthesize', methods=['POST'])
 def synthesize_minutes():

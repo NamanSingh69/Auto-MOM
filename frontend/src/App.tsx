@@ -170,22 +170,47 @@ export default function App() {
       const mediaBlob = isFile
         ? (audioChunks[0] as File)
         : new Blob(audioChunks, { type: 'audio/webm' });
-      const fileName = isFile ? (audioChunks[0] as File).name : 'meeting.webm';
 
-      toast.loading('Uploading and analyzing your meeting...', { id: 'analyze' });
+      // --- STEP 1: Upload media directly to Google AI (bypassing Vercel limits) ---
+      toast.loading('Uploading media directly to Google AI...', { id: 'analyze' });
 
-      // Create FormData to send the file directly to our backend
-      const formData = new FormData();
-      formData.append('media', mediaBlob, fileName);
-      formData.append('model', currentModel);
+      const uploadRes = await fetch('https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=media', {
+        method: 'POST',
+        headers: {
+          'X-Goog-Api-Key': currentApiKey,
+          'Content-Type': mediaBlob.type || 'audio/webm',
+        },
+        body: mediaBlob,
+      });
 
-      // Perform a single request to the backend (handles upload & synthesis)
+      if (!uploadRes.ok) {
+        const errData = await uploadRes.json().catch(() => ({}));
+        throw new Error(errData?.error?.message || `Google upload failed (${uploadRes.status})`);
+      }
+
+      const uploadData = await uploadRes.json();
+      const fileUri = uploadData?.file?.uri;
+      const fileSdkName = uploadData?.file?.name;
+
+      if (!fileSdkName || !fileUri) {
+        throw new Error('Upload succeeded but no file reference was returned.');
+      }
+
+      // --- STEP 3: Send lightweight JSON to our backend for synthesis ---
+      setState('ANALYZING');
+      toast.loading('AI is analyzing your meeting...', { id: 'analyze' });
+
       const synthRes = await fetch(`${API_BASE}/api/synthesize`, {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'X-Gemini-Key': currentApiKey,
         },
-        body: formData,
+        body: JSON.stringify({
+          file_uri: fileUri,
+          file_name: fileSdkName,
+          model: currentModel,
+        }),
       });
 
       if (!synthRes.ok) {
