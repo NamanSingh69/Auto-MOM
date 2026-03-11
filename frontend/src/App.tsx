@@ -196,6 +196,26 @@ export default function App() {
         throw new Error('Upload succeeded but no file reference was returned.');
       }
 
+      // --- STEP 2: Poll until Google file is ACTIVE (client-side, no timeout limit) ---
+      toast.loading('Processing media (waiting for Google to activate file)...', { id: 'analyze' });
+
+      const MAX_WAIT_MS = 120_000; // 2 minutes
+      const POLL_INTERVAL_MS = 3_000;
+      const pollStart = Date.now();
+      while (Date.now() - pollStart < MAX_WAIT_MS) {
+        await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+        const fileStatusRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/${fileSdkName}`,
+          { headers: { 'X-Goog-Api-Key': currentApiKey } }
+        );
+        if (fileStatusRes.ok) {
+          const fileData = await fileStatusRes.json();
+          const state = fileData?.state?.toUpperCase?.() ?? '';
+          if (state === 'ACTIVE') break;
+          if (state === 'FAILED') throw new Error('Google failed to process your file. Please try again.');
+        }
+      }
+
       // --- STEP 3: Send lightweight JSON to our backend for synthesis ---
       setState('ANALYZING');
       toast.loading('AI is analyzing your meeting...', { id: 'analyze' });
