@@ -60,6 +60,8 @@ export default function App() {
   };
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
+  const audioContext = useRef<AudioContext | null>(null);
+  const mediaStreams = useRef<MediaStream[]>([]);
   const timerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -94,8 +96,37 @@ export default function App() {
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorder.current = new MediaRecorder(stream);
+      // 1. Request Screen (for System/Tab Audio)
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true // Explicitly ask for audio from the screen
+      });
+
+      // If user forgot to share audio, warn them but continue if we still have video
+      if (displayStream.getAudioTracks().length === 0) {
+        toast.warning('No system audio selected. Make sure to check "Share tab/system audio" in the prompt.');
+      }
+
+      // 2. Request Microphone (for User Audio)
+      const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Store streams so we can stop them later
+      mediaStreams.current = [displayStream, micStream];
+
+      // 3. Merge Audio Streams using AudioContext
+      audioContext.current = new AudioContext();
+      const dest = audioContext.current.createMediaStreamDestination();
+
+      if (displayStream.getAudioTracks().length > 0) {
+        const displaySource = audioContext.current.createMediaStreamSource(new MediaStream([displayStream.getAudioTracks()[0]]));
+        displaySource.connect(dest);
+      }
+
+      const micSource = audioContext.current.createMediaStreamSource(micStream);
+      micSource.connect(dest);
+
+      // 4. Record the merged destination stream
+      mediaRecorder.current = new MediaRecorder(dest.stream);
       const chunks: Blob[] = [];
 
       mediaRecorder.current.ondataavailable = (e) => {
@@ -110,6 +141,11 @@ export default function App() {
         setAudioSource('recorded');
       };
 
+      // Handle when the user clicks "Stop Sharing" on the browser's native banner
+      displayStream.getVideoTracks()[0].onended = () => {
+        stopRecording();
+      };
+
       mediaRecorder.current.start();
       setState('RECORDING');
       setRecordingTime(0);
@@ -117,9 +153,9 @@ export default function App() {
         setRecordingTime((prev) => prev + 1);
       }, 1000);
 
-      toast.success('Recording started');
+      toast.success('Recording started: Screen Audio + Microphone');
     } catch (err) {
-      toast.error('Microphone access denied or unavailable');
+      toast.error('Recording cancelled or permissions denied');
       setState('ERROR');
     }
   };
@@ -127,7 +163,18 @@ export default function App() {
   const stopRecording = () => {
     if (mediaRecorder.current && state === 'RECORDING') {
       mediaRecorder.current.stop();
-      mediaRecorder.current.stream.getTracks().forEach(track => track.stop());
+
+      // Stop all tracks (Screen, Mic, System Audio)
+      mediaStreams.current.forEach(stream => {
+        stream.getTracks().forEach(track => track.stop());
+      });
+      mediaStreams.current = [];
+
+      // Close the AudioContext
+      if (audioContext.current && audioContext.current.state !== 'closed') {
+        audioContext.current.close();
+      }
+
       if (timerRef.current) clearInterval(timerRef.current);
       setState('IDLE');
       toast.success('Recording saved locally');
@@ -331,7 +378,7 @@ export default function App() {
         <div className="w-full max-w-3xl mb-10">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { step: '1', icon: <Mic size={18} />, label: 'Record', desc: 'Capture live meeting audio in-browser', active: state === 'RECORDING' },
+              { step: '1', icon: <Mic size={18} />, label: 'Record', desc: 'Share Tab/System Audio + Mic', active: state === 'RECORDING' },
               { step: '2', icon: <Download size={18} />, label: 'Save', desc: 'Download the recording to your device', active: audioSource === 'recorded' && state === 'IDLE' && !!audioUrl },
               { step: '3', icon: <Upload size={18} />, label: 'Upload', desc: 'Or skip — attach an existing audio/video file', active: audioSource === 'uploaded' },
               { step: '4', icon: <Sparkles size={18} />, label: 'Synthesize', desc: 'AI generates structured meeting minutes', active: state === 'UPLOADING' || state === 'ANALYZING' || state === 'SUCCESS' },
@@ -377,14 +424,19 @@ export default function App() {
                 <Square className="w-8 h-8 fill-white text-white" />
               </button>
             ) : (
-              <button
-                onClick={startRecording}
-                disabled={state === 'UPLOADING' || state === 'ANALYZING'}
-                aria-label="Start recording meeting"
-                className="w-20 h-20 rounded-full bg-slate-800 border border-slate-700 hover:border-brand-500/50 hover:bg-slate-700 flex items-center justify-center transition-all disabled:opacity-50 group"
-              >
-                <Mic className="w-8 h-8 text-brand-400 group-hover:text-brand-300 transition-colors" />
-              </button>
+              <div className="flex flex-col items-center">
+                <button
+                  onClick={startRecording}
+                  disabled={state === 'UPLOADING' || state === 'ANALYZING'}
+                  aria-label="Start recording meeting"
+                  className="w-20 h-20 rounded-full bg-slate-800 border border-slate-700 hover:border-brand-500/50 hover:bg-slate-700 flex items-center justify-center transition-all disabled:opacity-50 group mb-2"
+                >
+                  <Mic className="w-8 h-8 text-brand-400 group-hover:text-brand-300 transition-colors" />
+                </button>
+                <div className="text-[10px] text-slate-500 max-w-[120px] text-center uppercase tracking-widest font-bold">
+                  Toggle "Share Audio" in popup
+                </div>
+              </div>
             )}
           </div>
 
