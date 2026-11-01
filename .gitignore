@@ -29,3 +29,8 @@ __pycache__/
 .env.test
 .vercel
 .env*.local
+
+# local environments and Vercel build cache
+venv/
+.venv/
+.vercel/
