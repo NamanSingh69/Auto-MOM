@@ -54,7 +54,7 @@ export default function AgentModal({ isOpen, onClose, onSave, initialMode = 'fas
                         </label>
                         <input
                             type="password"
-                            placeholder="Leave blank to use free public key"
+                            placeholder="Paste your Gemini API key"
                             value={apiKey}
                             onChange={(e) => setApiKey(e.target.value)}
                             aria-label="Gemini API key"
@@ -62,7 +62,7 @@ export default function AgentModal({ isOpen, onClose, onSave, initialMode = 'fas
                             autoComplete="off"
                         />
                         <p className="text-[10px] text-slate-400 mt-2 leading-snug">
-                            ✅ A free public API key is active by default. Add your own for higher rate limits.
+                            Your own Gemini API key (free from Google AI Studio) is needed to upload recordings.
                         </p>
                     </div>
 
