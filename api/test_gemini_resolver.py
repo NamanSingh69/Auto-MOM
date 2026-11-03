@@ -14,6 +14,7 @@ def test_generate_with_fallback_success_first_try(mock_cascade, MockGenerativeMo
     
     mock_instance = MagicMock()
     mock_instance.generate_content.return_value = "Success Response"
+    mock_instance.count_tokens.return_value.total_tokens = 10  # small payload: no context caching
     MockGenerativeModel.return_value = mock_instance
     
     response, used_model = generate_with_fallback("fake_key", "model1", "test context")
@@ -33,6 +34,8 @@ def test_generate_with_fallback_triggers_fallback_on_429(mock_cascade, MockGener
     
     mock_instance_fallback = MagicMock()
     mock_instance_fallback.generate_content.return_value = "Fallback Response"
+    for m in (mock_instance_primary, mock_instance_fallback):
+        m.count_tokens.return_value.total_tokens = 10  # small payload: no context caching
     
     # Return different mocks sequentially
     MockGenerativeModel.side_effect = [mock_instance_primary, mock_instance_fallback]
